@@ -1,0 +1,133 @@
+--1 Update Statements
+UPDATE tblItem SET itemDescription = 'Desk Lamps'
+WHERE ItemDescription = 'Desk Lamp'
+
+--1 Insert Statements
+INSERT INTO tblSale(CustomerID, EmployeeID, Saledate, Subtotal, Tax, Total)
+VALUES ('10','3','10/27/2021', '10', '1', '11')
+
+INSERT INTO tblSaleItem(SaleID,ItemID, ItemPrice)
+VALUES ('38','13', '14')
+
+--1 Delete Statement
+DELETE FROM tblSale Where SaleID = '38'
+
+-- We needed one delete statement because it will delete the connected record where the saleID matches. Basically it cascade deletes.
+
+--1 Create new view
+--Ignore red line, as it still runs and works...
+CREATE VIEW vueSaleSummary AS
+SELECT tblSale.SaleID, tblSale.SaleDate, tblSaleItem.SaleItemID, tblSaleItem.ItemID, 
+tblItem.ItemDescription, tblItem.ItemPrice FROM tblSale, tblSaleItem, tblItem
+
+
+
+
+--2 RETURN LastName Function
+Create FUNCTION dbo.ufnGetLastName (@fullname varchar(100))
+returns varchar(50)
+AS
+BEGIN
+--declare the local variable: lastName
+DECLARE @lastName varchar(50);
+--declare the index variable to find the index of the separator that separates last name from first name
+DECLARE @separatorIndex int;
+--get the separator index value
+--check if the default separator (,) exists
+SET @separatorIndex = CHARINDEX(',',@fullname);
+IF @separatorIndex > 0 
+	BEGIN
+	 SET @lastName = SUBSTRING(@fullname, 1, @separatorIndex-1);
+	END
+--if it does, use the substring function to find the last name
+--if it does not, let's assume the space is the separator and the full name format is FirstName LastName
+--find the index for the space, then find the last name
+ELSE
+	BEGIN
+		SET @separatorIndex = CHARINDEX(' ', @fullname);
+		SET @lastName = SUBSTRING(@FullName, @separatorIndex+1, (LEN(@fullname)-@separatorindex));
+	END
+
+--return the last name
+RETURN @lastName
+END
+
+
+
+--RETURN FIRST NAME FUNCTION
+Create FUNCTION dbo.ufnGetFirstName (@fullname varchar(100))
+returns varchar(50)
+AS
+BEGIN
+--declare the local variable: FirstName
+DECLARE @FirstName varchar(50);
+
+--declare the index variable to find the index of the separator that separates last name from first name
+DECLARE @separatorIndex int;
+--get the separator index value
+--check if the default separator (,) exists
+SET @separatorIndex = CHARINDEX(',',@fullname);
+IF @separatorIndex > 0 
+	BEGIN
+	 SET @FirstName = SUBSTRING(@fullname, (2+@separatorIndex), (LEN(@fullname)-@separatorIndex));
+	END
+--if it does, use the substring function to find the last name
+--if it does not, let's assume the space is the separator and the full name format is FirstName LastName
+--find the index for the space, then find the last name
+ELSE
+	BEGIN
+
+		SET @separatorIndex = CHARINDEX(' ', @fullname);
+		SET @FirstName = SUBSTRING(@FullName, 1, (@separatorIndex-1));
+	END
+
+--return the First name
+RETURN @FirstName
+END
+
+--TEST
+SELECT FullName, dbo.ufnGetFirstName (FullName) as FirstName, dbo.ufnGetLastName 
+(FullName) as LastName FROM tblPersonNames; 
+
+
+
+--WithoutDiscount CREATE FUNCTION
+
+CREATE FUNCTION dbo.ufnGetOrderGrandTotalWithoutDiscount (@orderID int)
+returns float
+AS
+BEGIN
+--Declare local variables: 
+--@grandTotal float, @unitPrice float, @quantity int
+DECLARE @grandTotal float, @unitPrice float, @quantity int
+--Initiate the local variables
+SET @grandTotal = 0;
+SET @UnitPrice = 0;
+SET @quantity = 0;
+
+--Declare a cursor to get all products from an order
+DECLARE cs CURSOR FOR select UnitPrice, Quantity from tblPSMOrderDetail where OrderID=@orderID;
+--Open the cursor
+ OPEN cs;
+--Fetch UnitPrice, Quantity, and Discount into @unitPrice, @quantity
+FETCH next from cs INTO @unitPrice, @quantity
+--Use @@FETCH_STATUS to check if there are more records in the cursor
+--@@FETCH_STATUS=0 --> it successfully fetched a row; @@FETCH_STATUS=-1 --> no more
+WHILE @@FETCH_STATUS=0
+BEGIN
+	--calculate the grand total without discount
+	SET @grandTotal = @grandTotal + @unitPrice * @quantity
+	--fetch next row from the OrderDetail table with the same OrderID
+	FETCH next from cs INTO @unitPrice, @quantity
+END
+--close the cursor
+CLOSE cs;
+--deallocate the cursor in memory
+DEALLOCATE cs;
+--return @grandTotal
+RETURN @grandTotal;
+
+END
+
+--TEST
+select OrderID, dbo.ufnGetOrderGrandTotalWithoutDiscount(OrderID) as 'Grand Total w/o Discount' from tblPSMOrder;
